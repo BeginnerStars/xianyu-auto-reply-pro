@@ -113,6 +113,10 @@ class AutoReplyService:
         self._filter_cache_ttl: float = 60  # 缓存有效期(秒)
         self._filter_cache_max_size: int = 1000  # 最大缓存条数
         
+        # 关键词缓存（30秒TTL）
+        self._keyword_cache: Dict[str, tuple] = {}  # cache_key -> (keywords, timestamp)
+        self._keyword_cache_ttl: float = 30.0  # 缓存有效期(秒)
+        
         # 消息去重(参照旧框架reply_scheduler.py)
         # 使用 chat_id + send_message 作为去重键，同一会话的同一消息内容在等待时间内不重复回复
         import asyncio
@@ -1209,7 +1213,16 @@ class AutoReplyService:
             return None
 
     async def _list_keywords(self, session: AsyncSession, account: XYAccount) -> list[dict]:
-        """获取关键词列表（参照旧框架，添加is_active条件）"""
+        """获取关键词列表（参照旧框架，添加is_active条件，带30秒TTL缓存）"""
+        cache_key = f"kw_{account.id}"
+        now = time.time()
+        
+        # 检查缓存
+        if cache_key in self._keyword_cache:
+            cached_keywords, cached_time = self._keyword_cache[cache_key]
+            if now - cached_time < self._keyword_cache_ttl:
+                return cached_keywords
+        
         stmt = (
             select(XYKeywordRule, XYCatalogItem.title)
             .outerjoin(
@@ -1237,6 +1250,9 @@ class AutoReplyService:
                     "item_title": item_title or "",
                 }
             )
+        
+        # 写入缓存
+        self._keyword_cache[cache_key] = (keywords, now)
         return keywords
     
     async def _handle_image_keyword(self, keyword: str, image_url: str) -> str:

@@ -62,7 +62,7 @@ class FutureManager:
         if self._cleanup_task is not None:
             return
         self._cleanup_task = asyncio.ensure_future(self._cleanup_loop())
-        logger.debug(f"[FutureManager:{self.name}] 清理循环已启动")
+        logger.debug(f"FutureManager: 清理循环已启动")
 
     async def stop(self):
         """停止清理循环"""
@@ -78,7 +78,7 @@ class FutureManager:
             if not info.future.done():
                 info.future.cancel()
         self._futures.clear()
-        logger.debug(f"[FutureManager:{self.name}] 已停止并清理所有futures")
+        logger.debug(f"FutureManager: 已停止并清理所有futures")
 
     def create_future(self, key: str, timeout: float = 30.0) -> asyncio.Future:
         """
@@ -101,7 +101,7 @@ class FutureManager:
         old = self._futures.pop(key, None)
         if old is not None and not old.future.done():
             old.future.cancel()
-            logger.debug(f"[FutureManager:{self.name}] 替换未完成的future: {key}")
+            logger.debug(f"FutureManager: 替换未完成的future: {key}")
 
         self._futures[key] = FutureInfo(future, key, timeout)
         return future
@@ -163,15 +163,15 @@ class FutureManager:
                     if info is not None and not info.future.done():
                         info.future.cancel()
                         logger.debug(
-                            f"[FutureManager:{self.name}] 清理超时future: {key} "
+                            f"FutureManager: 清理超时future: {key} "
                             f"(超时 {info.timeout}s)"
                         )
                 if expired_keys:
                     logger.info(
-                        f"[FutureManager:{self.name}] 清理超时futures: "
+                        f"FutureManager: 清理超时futures: "
                         f"{len(expired_keys)}个，剩余: {len(self._futures)}个"
                     )
         except asyncio.CancelledError:
-            logger.debug(f"[FutureManager:{self.name}] 清理循环已取消")
+            logger.debug(f"FutureManager: 清理循环已取消")
         except Exception as e:
-            logger.error(f"[FutureManager:{self.name}] 清理循环异常: {e}")
+            logger.error(f"FutureManager: 清理循环异常: {e}")

@@ -11,7 +11,7 @@ from __future__ import annotations
 from datetime import datetime, timedelta, timezone
 from typing import Any
 
-from sqlalchemy import and_, case, func, or_, select
+from sqlalchemy import and_, case, func, or_, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.services.auto_reply_stats_service import AutoReplyStatsService
@@ -486,8 +486,8 @@ class DashboardStatsService:
         avg_time_stmt = (
             select(
                 func.avg(
-                    func.timestampdiff(
-                        second,
+                    func.TIMESTAMPDIFF(
+                        text('SECOND'),
                         XYAutoReplyMessageLog.created_at,
                         XYAutoReplyMessageLog.updated_at,
                     )

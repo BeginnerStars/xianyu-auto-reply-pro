@@ -36,8 +36,11 @@ const DEFAULT_LOGIN_BRANDING_SETTINGS: LoginBrandingSettings = {
   'login.system_description': '自动回复、智能客服、订单管理、数据分析，一站式解决闲鱼运营难题',
 }
 
+// 广告链接域名（出现在登录页底部广告位）
+const AD_LINK_URL = 'http://www.hsykj.com'
+
 const DEFAULT_AUTH_FOOTER_AD_SETTINGS: AuthFooterAdSettings = {
-  'auth.footer_ad_html': '© 2026 划算云服务器 ·<a href="http://www.hsykj.com" target="_BLANK">www.hsykj.com</a>',
+  'auth.footer_ad_html': `© 2026 划算云服务器 ·<a href="${AD_LINK_URL}" target="_BLANK">www.hsykj.com</a>`,
 }
 
 const DISCLAIMER_SETTING_KEYS: Array<keyof DisclaimerSettings> = [

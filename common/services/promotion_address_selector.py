@@ -26,6 +26,7 @@ async def _read_promotion_address_text(container) -> str:
         try:
             candidates = await container.query_selector_all(selector)
         except Exception:
+            logger.debug(f"PromotionAddressSelector: query_selector_all failed for selector={selector}")
             continue
 
         for candidate in candidates:
@@ -44,11 +45,13 @@ async def _read_promotion_address_text(container) -> str:
                     continue
                 return text
             except Exception:
+                logger.debug("PromotionAddressSelector: failed to read candidate text")
                 continue
 
     try:
         container_text = re.sub(r"\s+", " ", str(await container.inner_text() or "")).strip()
     except Exception:
+        logger.debug("PromotionAddressSelector: failed to read container inner_text")
         container_text = ""
     if "宝贝所在地" in container_text:
         container_text = container_text.replace("宝贝所在地", "").strip()
@@ -68,6 +71,7 @@ async def _find_promotion_address_entry(page):
         try:
             candidates = await page.query_selector_all(selector)
         except Exception:
+            logger.debug(f"PromotionAddressSelector: query_selector_all failed for trigger selector={selector}")
             continue
 
         for candidate in candidates:
@@ -82,11 +86,13 @@ async def _find_promotion_address_entry(page):
                 try:
                     has_arrow = await candidate.query_selector('[class*="arrow"]') is not None
                 except Exception:
+                    logger.debug("PromotionAddressSelector: failed to check arrow element")
                     has_arrow = False
                 if not text and not has_arrow:
                     continue
                 return candidate, text
             except Exception:
+                logger.debug("PromotionAddressSelector: failed to evaluate trigger candidate")
                 continue
 
     return None, ""
@@ -133,6 +139,7 @@ async def set_promotion_item_address(
     try:
         text_node = await trigger.query_selector('[title], div[class*="address"], span[class*="address"]')
     except Exception:
+        logger.debug("PromotionAddressSelector: failed to query text_node in trigger")
         text_node = None
 
     click_targets = [trigger]
@@ -151,6 +158,7 @@ async def set_promotion_item_address(
                 clicked = True
                 break
             except Exception:
+                logger.debug("PromotionAddressSelector: click failed even with force")
                 continue
 
     if not clicked:
@@ -174,6 +182,7 @@ async def set_promotion_item_address(
         try:
             panels = await page.query_selector_all(selector)
         except Exception:
+            logger.debug(f"PromotionAddressSelector: query_selector_all failed for panel selector={selector}")
             continue
 
         for current_panel in panels:
@@ -186,6 +195,7 @@ async def set_promotion_item_address(
                     logger.info(f"✅ 已识别返佣地址选择层: {selector}")
                     break
             except Exception:
+                logger.debug("PromotionAddressSelector: failed to evaluate panel candidate")
                 continue
 
         if panel:
@@ -218,6 +228,7 @@ async def set_promotion_item_address(
             try:
                 inputs = await root.query_selector_all(selector)
             except Exception:
+                logger.debug(f"PromotionAddressSelector: query_selector_all failed for input selector={selector}")
                 continue
 
             for current_input in inputs:
@@ -237,6 +248,7 @@ async def set_promotion_item_address(
                     logger.info(f"✅ 在{root_name}中找到宝贝所在地搜索框: {selector}")
                     break
                 except Exception:
+                    logger.debug("PromotionAddressSelector: failed to evaluate input candidate")
                     continue
 
             if search_input:
@@ -263,7 +275,7 @@ async def set_promotion_item_address(
             await search_input.press("Control+A")
             await search_input.press("Backspace")
         except Exception:
-            pass
+            logger.debug("PromotionAddressSelector: failed to clear search input")
     await asyncio.sleep(0.4)
     await search_input.type(address, delay=150)
     await asyncio.sleep(2.5)
@@ -289,6 +301,7 @@ async def set_promotion_item_address(
             try:
                 options = await root.query_selector_all(selector)
             except Exception:
+                logger.debug(f"PromotionAddressSelector: query_selector_all failed for option selector={selector}")
                 continue
 
             for option in options:
@@ -336,6 +349,7 @@ async def set_promotion_item_address(
                         best_text = option_text
                         best_score = score
                 except Exception:
+                    logger.debug("PromotionAddressSelector: failed to evaluate option candidate")
                     continue
 
     if not best_option:
@@ -366,6 +380,7 @@ async def set_promotion_item_address(
                     confirmed = True
                     break
             except Exception:
+                logger.debug("PromotionAddressSelector: failed to click confirm button")
                 continue
         if confirmed:
             break

@@ -13,6 +13,10 @@ import hashlib
 import aiohttp
 from loguru import logger
 
+# 第三方API地址（均为IP直连，HTTPS证书不可用，使用HTTP存在中间人风险，建议部署前通过反向代理加TLS）
+_YIFAN_CALLBACK_URL = "http://116.196.116.76/yifan.php"
+_YIFAN_ORDER_API_URL = "http://price.78shuk.top/dockapiv3/order/create"
+
 
 class YifanApiHandler:
     """亦凡API处理器"""
@@ -86,7 +90,7 @@ class YifanApiHandler:
             user_key = api_config.get('user_key')
             goods_id = api_config.get('goods_id')
             # 回调地址：优先使用卡券配置中的，如果没有则从全局配置读取，最后使用默认地址
-            callback_url = (api_config.get('callback_url') or '').strip() or (YIFAN_API.get('callback_url') or '').strip() or 'http://116.196.116.76/yifan.php'
+            callback_url = (api_config.get('callback_url') or '').strip() or (YIFAN_API.get('callback_url') or '').strip() or _YIFAN_CALLBACK_URL
             require_account = api_config.get('require_account', False)
 
             if not user_id or not user_key or not goods_id:
@@ -142,8 +146,8 @@ class YifanApiHandler:
                 await self.create_session()
 
             # 发起API请求（使用data而不是json，发送form格式）
-            api_url = "http://price.78shuk.top/dockapiv3/order/create"
-            
+            api_url = _YIFAN_ORDER_API_URL
+
             timeout_obj = aiohttp.ClientTimeout(total=30)
             async with self.session.post(api_url, data=params, timeout=timeout_obj) as response:
                 status_code = response.status
@@ -169,7 +173,7 @@ class YifanApiHandler:
                                 success_msg += f"商家订单号: {us_order_no}\n"
                             
                             # 添加查询地址（从全局配置读取）
-                            query_url = YIFAN_API.get('query_url', 'http://116.196.116.76/yifan.php')
+                            query_url = YIFAN_API.get('query_url', _YIFAN_CALLBACK_URL)
                             success_msg += f"\n🔍 查询卡密：\n"
                             success_msg += f"{query_url}\n"
                             success_msg += f"(输入订单号查询)\n"
@@ -277,8 +281,8 @@ class YifanApiHandler:
                 await self.create_session()
 
             # 发起API请求（使用data而不是json，发送form格式）
-            api_url = "http://price.78shuk.top/dockapiv3/order/create"
-            
+            api_url = _YIFAN_ORDER_API_URL
+
             timeout_obj = aiohttp.ClientTimeout(total=30)
             async with self.session.post(api_url, data=params, timeout=timeout_obj) as response:
                 status_code = response.status

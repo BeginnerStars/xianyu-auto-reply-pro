@@ -37,6 +37,9 @@ from launcher.gui_theme import (
 from launcher.gui_running import show_running_page
 from launcher.browser_setup import check_and_install_chromium, is_chromium_installed
 
+# 服务器地址常量
+_SERVER_URL = "https://xy.zhinianboke.com"
+
 
 class LauncherApp:
     """
@@ -101,7 +104,7 @@ class LauncherApp:
                 import io
                 import tempfile
                 import urllib.request
-                url = "https://xy.zhinianboke.com/static/qrcode/wechat-official-group.jpg"
+                url = f"{_SERVER_URL}/static/qrcode/wechat-official-group.jpg"
                 req = urllib.request.Request(url)
                 req.add_header("User-Agent", "XianyuAutoReply-GUI")
                 req.add_header("Accept-Encoding", "gzip, deflate")
@@ -232,7 +235,7 @@ class LauncherApp:
         act_url_frame.pack(fill=tk.X, padx=20, pady=(10, 0))
         tk.Label(act_url_frame, text="🔑 获取激活码：", font=("微软雅黑", 9),
                  fg=_COLORS["text"], bg="#EFF6FF").pack(side=tk.LEFT)
-        act_url = "https://xy.zhinianboke.com/get-activation"
+        act_url = f"{_SERVER_URL}/get-activation"
         act_url_lbl = tk.Label(act_url_frame, text=act_url,
                                font=("Consolas", 9, "underline"),
                                fg=_COLORS["primary"], bg="#EFF6FF", cursor="hand2")
@@ -244,7 +247,7 @@ class LauncherApp:
         renew_url_frame.pack(fill=tk.X, padx=20, pady=(8, 0))
         tk.Label(renew_url_frame, text="♻ 获取续期码：", font=("微软雅黑", 9),
                  fg=_COLORS["text"], bg="#ECFDF5").pack(side=tk.LEFT)
-        renew_url = "https://xy.zhinianboke.com/renew-activation"
+        renew_url = f"{_SERVER_URL}/renew-activation"
         renew_url_lbl = tk.Label(renew_url_frame, text=renew_url,
                                  font=("Consolas", 9, "underline"),
                                  fg=_COLORS["success"], bg="#ECFDF5", cursor="hand2")

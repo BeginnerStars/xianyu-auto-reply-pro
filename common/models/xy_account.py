@@ -24,6 +24,9 @@ class XYAccount(TimestampMixin, Base):
     __tablename__ = "xy_accounts"
     __table_args__ = (
         Index("idx_account_created", "created_at"),
+        Index("idx_account_status_redelivery", "status", "scheduled_redelivery"),
+        Index("idx_account_status_rate", "status", "scheduled_rate"),
+        Index("idx_account_status_polish", "status", "auto_polish"),
     )
 
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)

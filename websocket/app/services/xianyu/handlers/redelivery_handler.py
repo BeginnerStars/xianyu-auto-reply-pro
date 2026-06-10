@@ -182,7 +182,7 @@ class RedeliveryHandler:
                                 await order_service.update_order_status(order_no, "shipped")
                         except Exception as e:
                             logger.error(f"【{parent.cookie_id}】重发货触发: 更新订单状态失败: {e}")
-                        parent.auto_delivery_handler.mark_delivery_sent(order_no)
+                        await parent.auto_delivery_handler.mark_delivery_sent(order_no)
                         return True
                     logger.info(f"【{parent.cookie_id}】重发货触发: 免拼发货成功，继续自动发货流程")
                 else:

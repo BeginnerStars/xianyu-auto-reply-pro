@@ -23,9 +23,11 @@ def _get_data_dir() -> Path:
 
 
 # 需要自动生成的配置文件及其默认内容
+_DEFAULT_UPDATE_URL = "https://xy-update.zhinianboke.com"
+
 _CONFIG_TEMPLATES = {
     "update_config.json": {
-        "update_url": "https://xy-update.zhinianboke.com"
+        "update_url": _DEFAULT_UPDATE_URL
     },
 }
 

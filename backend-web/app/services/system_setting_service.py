@@ -19,6 +19,9 @@ from common.utils.text_utils import escape_xss
 
 SENSITIVE_KEYS = {"admin_password_hash"}
 
+# 广告链接域名（出现在登录页底部广告位）
+_AD_LINK_URL = "http://www.hsykj.com"
+
 DEFAULT_DISCLAIMER_CONTENT = (
     "数据存储说明\n"
     "1. 本系统在运行过程中，为保障服务正常运行，会存储用户账号密码、登录 Cookie、商品信息、卡券信息等业务数据。\n"
@@ -36,7 +39,7 @@ DEFAULT_DISCLAIMER_CONTENT = (
 
 DEFAULT_LOGIN_SYSTEM_TITLE = "高效专业的\n闲鱼自动化管理平台"
 DEFAULT_LOGIN_SYSTEM_DESCRIPTION = "自动回复、智能客服、订单管理、数据分析，一站式解决闲鱼运营难题"
-DEFAULT_AUTH_FOOTER_AD_HTML = "© 2026 划算云服务器 ·<a href=\"http://www.hsykj.com\" target=\"_BLANK\">www.hsykj.com</a>"
+DEFAULT_AUTH_FOOTER_AD_HTML = f'© 2026 划算云服务器 ·<a href="{_AD_LINK_URL}" target="_BLANK">www.hsykj.com</a>'
 
 DEFAULT_SYSTEM_SETTINGS: dict[str, tuple[str, str | None]] = {
     "disclaimer.title": ("免责声明", "系统免责声明标题"),

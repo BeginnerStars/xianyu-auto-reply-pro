@@ -31,6 +31,9 @@ from common.db.session import async_engine, async_session_maker
 from common.utils.time_utils import get_beijing_now_naive
 from common.utils.security import generate_secret_key, get_password_hash
 
+# 广告链接域名（出现在登录页底部广告位）
+_AD_LINK_URL = "http://www.hsykj.com"
+
 
 @contextmanager
 def suppress_db_warnings():
@@ -131,7 +134,7 @@ class DatabaseInitializer:
         ),
         (
             "auth.footer_ad_html",
-            "© 2026 划算云服务器 ·<a href=\"http://www.hsykj.com\" target=\"_BLANK\">www.hsykj.com</a>",
+            f"© 2026 划算云服务器 ·<a href=\"{_AD_LINK_URL}\" target=\"_BLANK\">www.hsykj.com</a>",
             "登录页和注册页底部广告 HTML",
         ),
         (

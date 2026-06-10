@@ -112,10 +112,14 @@ class RateTask:
                 
                 logger.debug(f"[定时补评价] 找到 {len(accounts)} 个符合条件的账号")
                 
+                # 批量获取所有待评价订单，按account_id分组（避免N+1查询）
+                account_ids = [a.account_id for a in accounts]
+                orders_by_account = await self._get_pending_rate_orders_batch(session, account_ids)
+                
                 # 处理每个账号
                 for account in accounts:
                     try:
-                        await self._process_account(session, batch_id, account)
+                        await self._process_account(session, batch_id, account, orders_by_account.get(account.account_id, []))
                     except Exception as e:
                         logger.error(f"[定时补评价] 处理账号 {account.account_id} 异常: {e}")
                         continue
@@ -180,11 +184,50 @@ class RateTask:
         result = await session.execute(stmt)
         return list(result.scalars().all())
     
+    async def _get_pending_rate_orders_batch(
+        self,
+        session: AsyncSession,
+        account_ids: List[str]
+    ) -> Dict[str, List[XYOrder]]:
+        """
+        批量获取多个账号的待评价订单（避免N+1查询）
+        
+        Args:
+            session: 数据库会话
+            account_ids: 账号ID列表
+            
+        Returns:
+            {account_id: [XYOrder, ...]} 字典
+        """
+        if not account_ids:
+            return {}
+        
+        now = get_beijing_now_naive()
+        today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
+        
+        stmt = select(XYOrder).where(
+            XYOrder.account_id.in_(account_ids),
+            XYOrder.placed_at.is_not(None),
+            XYOrder.placed_at >= today_start,
+            XYOrder.status.in_(["shipped", "completed"]),
+            (XYOrder.is_rated == False) | (XYOrder.is_rated == None),
+        ).order_by(XYOrder.account_id, XYOrder.placed_at)
+        
+        result = await session.execute(stmt)
+        orders = list(result.scalars().all())
+        
+        # 按account_id分组
+        grouped: Dict[str, List[XYOrder]] = {}
+        for order in orders:
+            grouped.setdefault(order.account_id, []).append(order)
+        return grouped
+    
     async def _process_account(
         self,
         session: AsyncSession,
         batch_id: str,
-        account: XYAccount
+        account: XYAccount,
+        pre_fetched_orders: List[XYOrder] = None,
     ) -> None:
         """处理单个账号"""
         account_id = account.account_id
@@ -202,8 +245,8 @@ class RateTask:
             logger.debug(f"[定时补评价] 账号 {account_id} 没有Cookie，跳过")
             return
         
-        # 获取待评价订单
-        orders = await self._get_pending_rate_orders(session, account_id)
+        # 获取待评价订单（优先使用批量预取的数据）
+        orders = pre_fetched_orders if pre_fetched_orders is not None else await self._get_pending_rate_orders(session, account_id)
         
         if not orders:
             logger.debug(f"[定时补评价] 账号 {account_id} 没有待评价订单")

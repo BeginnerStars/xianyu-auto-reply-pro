@@ -28,6 +28,8 @@ class XYOrder(TimestampMixin, Base):
         Index("idx_order_owner_created", "owner_id", "created_at"),
         Index("idx_order_owner_account_placed", "owner_id", "account_id", "placed_at"),
         Index("idx_order_owner_account_buyer_created", "owner_id", "account_id", "buyer_id", "created_at"),
+        Index("idx_order_account_status_placed", "account_id", "status", "placed_at"),
+        Index("idx_order_account_rated_status", "account_id", "is_rated", "status", "placed_at"),
     )
 
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)

@@ -168,12 +168,12 @@ class NotificationDispatcher:
                 channel_type, channel_config, content, **kwargs
             )
             if result:
-                logger.info(f"📱 通知发送成功 ({channel_name})")
+                logger.info(f"NotificationDispatcher: 通知发送成功 ({channel_name})")
             else:
-                logger.warning(f"📱 通知发送失败 ({channel_name})")
+                logger.warning(f"NotificationDispatcher: 通知发送失败 ({channel_name})")
             return result
         except Exception as e:
-            logger.error(f"📱 发送通知失败 ({channel_name}): {e}")
+            logger.error(f"NotificationDispatcher: 发送通知失败 ({channel_name}): {e}")
             return False
 
     async def dispatch_all(
@@ -216,7 +216,7 @@ class NotificationDispatcher:
             channel_name = enabled_channels[i].get("channel_name", "Unknown")
             if isinstance(result, Exception):
                 logger.error(
-                    f"📱 通知渠道 {channel_name} 发送异常: {result}"
+                    f"NotificationDispatcher: 通知渠道 {channel_name} 发送异常: {result}"
                 )
             elif result:
                 success_count += 1

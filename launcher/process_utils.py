@@ -12,6 +12,8 @@ import socket
 import subprocess
 import sys
 
+from loguru import logger
+
 
 def kill_process_tree(pid: int):
     """
@@ -29,12 +31,12 @@ def kill_process_tree(pid: int):
                 creationflags=subprocess.CREATE_NO_WINDOW,
             )
         except Exception:
-            pass
+            logger.debug(f"ProcessUtils: failed to kill process tree (pid={pid}) on Windows")
     else:
         try:
             os.kill(pid, signal.SIGTERM)
         except Exception:
-            pass
+            logger.debug(f"ProcessUtils: failed to send SIGTERM (pid={pid})")
 
 
 def kill_by_port(port: int):
@@ -68,7 +70,7 @@ def kill_by_port(port: int):
                             creationflags=subprocess.CREATE_NO_WINDOW,
                         )
     except Exception:
-        pass
+        logger.debug(f"ProcessUtils: failed to kill by port (port={port})")
 
 
 def check_port(port: int, host: str = "127.0.0.1", timeout: float = 0.3) -> bool:

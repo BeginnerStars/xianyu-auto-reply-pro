@@ -360,7 +360,7 @@ class DeliveryPipeline:
                 return DeliveryResult.stop("延迟锁仍在持有")
 
             # C2. 时间冷却预检查
-            if not self.handler.can_auto_delivery(ctx.order_id):
+            if not await self.handler.can_auto_delivery(ctx.order_id):
                 logger.info(
                     f'[{ctx.msg_time}] 【{self.cookie_id}】'
                     f'订单 {ctx.order_id} 在冷却期内，跳过发货'
@@ -424,7 +424,7 @@ class DeliveryPipeline:
                 return DeliveryResult.stop("延迟锁仍持有（双重检查）")
 
             # C6. 双重冷却检查
-            if not self.handler.can_auto_delivery(ctx.order_id):
+            if not await self.handler.can_auto_delivery(ctx.order_id):
                 logger.info(
                     f'[{ctx.msg_time}] 【{self.cookie_id}】'
                     f'订单 {ctx.order_id} 在获取锁后检查发现仍在冷却期，跳过发货'
@@ -564,7 +564,7 @@ class DeliveryPipeline:
         """
         try:
             # 标记已发货 + 设置延迟锁
-            self.handler.mark_delivery_sent(ctx.order_id)
+            await self.handler.mark_delivery_sent(ctx.order_id)
             self.handler._lock_hold_info[ctx.lock_key] = {
                 'locked': True,
                 'lock_time': time.time(),

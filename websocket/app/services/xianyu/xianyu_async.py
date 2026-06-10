@@ -130,10 +130,8 @@ class XianyuAsync:
         # LWP 请求-响应关联：按 mid 等待服务端响应
         # key: mid（客户端发送时生成），value: asyncio.Future（消息循环收到响应时 set_result）
         # 用于 /r/SingleChatConversation/create 等需要拿响应结果的请求
-        self._pending_mid_futures: Dict[str, asyncio.Future] = {}
-        self._pending_mid_futures_times: Dict[str, float] = {}  # 记录创建时间
-        self._mid_future_cleanup_task = None
-        self._mid_future_timeout = 60  # 超时秒数
+        from app.services.xianyu.future_manager import FutureManager
+        self._mid_future_manager = FutureManager(name=cookie_id, cleanup_interval=30.0)
         
         # Session
         self.session = None
@@ -400,35 +398,13 @@ class XianyuAsync:
             logger.error(f"【{self.cookie_id}】注销实例失败: {e}")
 
     async def _start_pending_futures_cleanup(self):
-        """启动 _pending_mid_futures 超时清理任务"""
-        if self._mid_future_cleanup_task is not None:
-            return
-        self._mid_future_cleanup_task = asyncio.ensure_future(self._cleanup_pending_futures_loop())
-        self.background_tasks.add(self._mid_future_cleanup_task)
-        self._mid_future_cleanup_task.add_done_callback(self.background_tasks.discard)
+        """启动 mid future 超时清理任务（委托给 FutureManager）"""
+        await self._mid_future_manager.start()
 
     async def _cleanup_pending_futures_loop(self):
-        """定期清理超时的 _pending_mid_futures，防止内存泄漏"""
-        try:
-            while True:
-                await asyncio.sleep(30)
-                now = time.time()
-                expired = [
-                    mid for mid, ts in self._pending_mid_futures_times.items()
-                    if now - ts > self._mid_future_timeout
-                ]
-                for mid in expired:
-                    fut = self._pending_mid_futures.pop(mid, None)
-                    self._pending_mid_futures_times.pop(mid, None)
-                    if fut is not None and not fut.done():
-                        fut.cancel()
-                        logger.debug(f"【{self.cookie_id}】清理超时 mid future: {mid}")
-                if expired:
-                    logger.info(f"【{self.cookie_id}】清理超时 pending futures: {len(expired)} 个")
-        except asyncio.CancelledError:
-            pass
-        except Exception as e:
-            logger.error(f"【{self.cookie_id}】pending futures 清理循环异常: {e}")
+        """清理超时的 mid futures（已委托给 FutureManager，保留方法兼容性）"""
+        # FutureManager 内置清理循环，此方法保留以兼容外部调用
+        pass
     
     @classmethod
     def get_instance(cls, cookie_id: str):
@@ -1032,7 +1008,7 @@ class XianyuAsync:
                                             logger.error(f"【{self.cookie_id}】更新订单状态失败: {e}")
 
                                         # 标记已发货，防止重复处理
-                                        self.auto_delivery_handler.mark_delivery_sent(order_id)
+                                        await self.auto_delivery_handler.mark_delivery_sent(order_id)
                                         return
                             else:
                                 logger.info(
@@ -1381,10 +1357,7 @@ class XianyuAsync:
             registered_mid = None
             send_future = None
             try:
-                loop = asyncio.get_running_loop()
-                send_future = loop.create_future()
-                self._pending_mid_futures[mid] = send_future
-                self._pending_mid_futures_times[mid] = time.time()
+                send_future = self._mid_future_manager.create_future(mid, timeout=60)
                 registered_mid = mid
             except Exception as reg_e:
                 logger.warning(f"【{self.cookie_id}】注册发送结果检测失败（不影响发送）: {self._safe_str(reg_e)}")
@@ -1448,10 +1421,9 @@ class XianyuAsync:
             return None
         finally:
             # 已被 _dispatch_mid_response 分派的 mid 已从字典移除（pop 安全幂等）；
-            # 超时未响应的 mid 在此清理，防止 _pending_mid_futures 堆积
+            # 超时未响应的 mid 在此清理，防止堆积
             if mid:
-                self._pending_mid_futures.pop(mid, None)
-                self._pending_mid_futures_times.pop(mid, None)
+                self._mid_future_manager.cancel_future(mid)
 
     @staticmethod
     def _extract_send_reject_reason(response: dict) -> Optional[str]:
@@ -1489,12 +1461,9 @@ class XianyuAsync:
                 return
             headers = message_data.get("headers") or {}
             mid = headers.get("mid") if isinstance(headers, dict) else None
-            if not mid or mid not in self._pending_mid_futures:
+            if not mid:
                 return
-            future = self._pending_mid_futures.pop(mid, None)
-            self._pending_mid_futures_times.pop(mid, None)
-            if future is not None and not future.done():
-                future.set_result(message_data)
+            self._mid_future_manager.resolve_future(mid, message_data)
         except Exception as e:
             logger.warning(f"【{self.cookie_id}】分派 mid 响应失败: {e}")
 
@@ -1548,9 +1517,7 @@ class XianyuAsync:
         }
 
         # 注册等待 Future 并发送请求
-        loop = asyncio.get_running_loop()
-        future: asyncio.Future = loop.create_future()
-        self._pending_mid_futures[mid] = future
+        future = self._mid_future_manager.create_future(mid, timeout=60)
 
         try:
             logger.info(
@@ -1575,7 +1542,7 @@ class XianyuAsync:
             return chat_id
         except asyncio.TimeoutError:
             # 超时清理 pending
-            self._pending_mid_futures.pop(mid, None)
+            self._mid_future_manager.cancel_future(mid)
             logger.error(
                 f"【{self.cookie_id}】创建会话超时: to_user_id={to_user_id}, "
                 f"item_id={item_id}, timeout={timeout}s"
@@ -1583,7 +1550,7 @@ class XianyuAsync:
             raise TimeoutError(f"创建会话超时（{timeout}秒）")
         except Exception:
             # 其他异常也要清理
-            self._pending_mid_futures.pop(mid, None)
+            self._mid_future_manager.cancel_future(mid)
             raise
 
     @staticmethod

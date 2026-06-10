@@ -15,13 +15,16 @@ import aiohttp
 from loguru import logger
 from PIL import Image
 
+# 闲鱼CDN上传应用标识（由闲鱼平台分配，非用户可控凭据）
+XIANYU_UPLOAD_APPKEY = "xy_chat"
+
 
 class ImageUploader:
     """图片上传器 - 上传图片到闲鱼CDN"""
-    
+
     def __init__(self, cookies_str: str):
         self.cookies_str = cookies_str
-        self.upload_url = "https://stream-upload.goofish.com/api/upload.api?floderId=0&appkey=xy_chat&_input_charset=utf-8"
+        self.upload_url = f"https://stream-upload.goofish.com/api/upload.api?floderId=0&appkey={XIANYU_UPLOAD_APPKEY}&_input_charset=utf-8"
         self.session: Optional[aiohttp.ClientSession] = None
     
     async def create_session(self):

@@ -106,7 +106,7 @@ class AIClientPool:
             client = self._create_client(provider_type, base_url, api_key)
             self._pool[key] = _CacheEntry(client)
             logger.debug(
-                f"[AI连接池] 新建客户端: provider={provider_type}, "
+                f"AIClientPool: 新建客户端: provider={provider_type}, "
                 f"base_url={base_url}, pool_size={len(self._pool)}"
             )
             return client
@@ -122,10 +122,10 @@ class AIClientPool:
                     elif hasattr(client, "aclose"):
                         await client.aclose()
                 except Exception as exc:
-                    logger.warning(f"[AI连接池] 关闭客户端失败: {key}, {exc}")
+                    logger.warning(f"AIClientPool: 关闭客户端失败: {key}, {exc}")
             count = len(self._pool)
             self._pool.clear()
-            logger.info(f"[AI连接池] 已关闭全部客户端 ({count} 个)")
+            logger.info(f"AIClientPool: 已关闭全部客户端 ({count} 个)")
 
     async def remove_client(
         self,
@@ -144,8 +144,8 @@ class AIClientPool:
                 elif hasattr(entry.client, "aclose"):
                     await entry.client.aclose()
             except Exception:
-                pass
-            logger.debug(f"[AI连接池] 已移除客户端: provider={provider_type}")
+                logger.debug("AIClientPool: failed to close client during remove")
+            logger.debug(f"AIClientPool: 已移除客户端: provider={provider_type}")
 
     @property
     def pool_size(self) -> int:
@@ -173,9 +173,9 @@ class AIClientPool:
                     elif hasattr(entry.client, "aclose"):
                         await entry.client.aclose()
                 except Exception:
-                    pass
+                    logger.debug("AIClientPool: failed to close expired client")
         if expired:
-            logger.debug(f"[AI连接池] 清理了 {len(expired)} 个过期客户端")
+            logger.debug(f"AIClientPool: 清理了 {len(expired)} 个过期客户端")
 
     @staticmethod
     def _create_client(

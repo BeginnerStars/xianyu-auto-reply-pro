@@ -20,6 +20,9 @@ from launcher.activation import (
     revoke_license,
 )
 
+# 服务器地址常量
+_SERVER_URL = "https://xy.zhinianboke.com"
+
 
 def render_renew_page(app):
     """
@@ -165,7 +168,7 @@ def render_renew_page(app):
 
     def _open_renew_page():
         """在浏览器中打开获取续期码页面"""
-        webbrowser.open("https://xy.zhinianboke.com/renew-activation")
+        webbrowser.open(f"{_SERVER_URL}/renew-activation")
 
     tk.Button(btn_frame, text="获取续期码", font=("微软雅黑", 9),
              fg="#ffffff", bg=COLORS["success"],

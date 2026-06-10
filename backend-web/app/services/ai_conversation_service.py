@@ -37,6 +37,7 @@ def _estimate_tokens(text: str) -> int:
         # tiktoken未安装，使用字符数估算
         return len(text) // 2 + 1
     except Exception:
+        logger.debug("AIConversationService: tiktoken unavailable, using char-based estimation")
         return len(text) // 2 + 1
 
 
@@ -401,6 +402,7 @@ class AIConversationService:
             # 使用AI客户端池
             client_pool = get_ai_client_pool()
             client = await client_pool.get_client(
+                provider_type='openai_compatible',
                 base_url=account.ai_base_url,
                 api_key=account.ai_api_key,
             )
