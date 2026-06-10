@@ -1,23 +1,33 @@
-# 闲鱼自动回复系统
+# xianyu-auto-reply-pro
 
-基于 FastAPI + React + MySQL + Redis + Playwright 的闲鱼多账号自动化系统。
+基于 [zhinianboke/xianyu-auto-reply](https://github.com/zhinianboke/xianyu-auto-reply) 的性能优化增强版，在原版基础上完成了 P0-P5 全面优化升级。
 
-主系统负责账号管理、消息收发、自动回复、自动发货、商品发布与后台管理；`promotion` 子项目负责返佣账号、选品规则、素材库、发布规则、删除规则和相关修复任务。
+## ✨ 本版新增/优化
+
+| 阶段 | 内容 |
+|------|------|
+| P0 | 连接池复用（HTTP/AI Client）+ Scheduler 重构（-73% 重复代码） |
+| P1 | 发货管道拆分（8步管道模式）+ 规则缓存 + Redis 冷却（多实例安全） |
+| P2 | AI 意图分类增强（LLM 兜底）+ 多模型 Fallback + Token 感知上下文裁剪 |
+| P3 | xianyu_async.py 瘦身（-400行）+ Handler 拆分 + Future 超时清理 |
+| P4 | 飞书卡片通知（4种模板）+ 卡券库存预警 |
+| P5 | 发货监控仪表盘（3个 API 端点）+ AI 对话摘要 |
 
 ## 功能概览
+
 ### 主系统
 
 | 模块 | 说明 |
 |------|------|
 | 多账号管理 | 支持多个闲鱼账号登录、状态切换、Cookie 维护与登录续期 |
 | 自动回复 | 支持文本关键词、图片关键词、默认回复、商品专属回复 |
-| AI 回复 | 支持大模型上下文对话与智能回复 |
-| 自动发货 | 支持卡券、虚拟商品、自动补发、发送结果记录 |
+| AI 回复 | 支持大模型上下文对话、智能回复、意图分类、多模型 Fallback |
+| 自动发货 | 支持卡券、虚拟商品、自动补发、管道模式发货 |
 | 在线聊天 | 支持会话列表、消息收发、聊天联动 |
 | 商品发布 | 支持素材库、地址库、单品发布、批量发布、发布日志 |
 | 订单与评价 | 订单拉取、自动评价、求小红花、状态跟踪 |
-| 商品采集与分销 | Goofish 采集、货源管理、对接记录、结算链路 |
-| 通知与风控 | 支持消息通知、风控日志、系统反馈与公告管理 |
+| 通知与风控 | 飞书卡片/钉钉/Bark/邮件/企微/Telegram/Webhook 7渠道并行通知 |
+| 监控仪表盘 | 发货统计、告警检测、对话摘要 |
 
 ### 返佣子系统
 
@@ -39,7 +49,7 @@
 | FastAPI | 主系统与返佣后端 API 服务 |
 | SQLAlchemy 2.0 | ORM 与数据库访问 |
 | MySQL 8.0 | 主数据存储 |
-| Redis 7 | 缓存、会话与任务辅助 |
+| Redis 7 | 缓存、会话、分布式锁、冷却管理 |
 | Playwright | 登录、Cookie 刷新、发布等浏览器自动化 |
 | APScheduler | 定时任务调度 |
 | Loguru | 日志管理 |
@@ -53,13 +63,6 @@
 | TailwindCSS | 主系统 UI 样式 |
 | Zustand | 状态管理 |
 | Lucide React | 图标体系 |
-
-### 部署
-
-| 技术 | 说明 |
-|------|------|
-| Docker / Docker Compose | 容器化部署 |
-| Nginx | 前端静态资源与反向代理 |
 
 ## 系统要求
 
@@ -81,28 +84,23 @@
 ## 项目结构
 
 ```text
-xianyu-auto-reply/
+xianyu-auto-reply-pro/
 ├── backend-web/          # 主 Web API 服务（端口 8089）
 ├── websocket/            # 闲鱼连接与消息处理服务（端口 8090）
 ├── scheduler/            # 定时任务服务（端口 8091）
 ├── common/               # 主系统与返佣系统共享模块
+│   ├── services/         # AI 客户端池、卡券匹配、库存监控
+│   ├── utils/            # HTTP 连接池、飞书卡片、通知工具
+│   └── ...
 ├── frontend/             # 主系统前端（端口 9000）
 ├── launcher/             # Windows 桌面启动器（Nuitka 打包为 EXE）
 ├── promotion/
 │   ├── backend/          # 返佣后端（端口 8092）
 │   └── frontend/         # 返佣前端（端口 9001）
-├── scripts/              # CI/CD 与工具脚本
-├── docker/frontend/      # 前端 Dockerfile 与 Nginx 配置
-├── docker-compose.yml    # 本地源码构建编排
-├── deploy.sh             # 一键部署脚本（自动生成远程镜像版 compose）
-├── update.sh             # 一键更新脚本（拉取最新远程镜像）
+├── docker-compose.yml    # Docker 编排
+├── deploy.sh             # 一键部署脚本
+├── update.sh             # 一键更新脚本
 ├── build.sh              # 本地源码全量构建脚本
-├── build_frontend.sh     # 单独构建并重启 Frontend
-├── build_backend_web.sh  # 单独构建并重启 Backend-Web
-├── build_websocket.sh    # 单独构建并重启 WebSocket
-├── build_scheduler.sh    # 单独构建并重启 Scheduler
-├── EXE打包构建.bat       # Windows 桌面启动器打包脚本
-├── 离线依赖打包.bat      # Windows 离线依赖打包脚本
 └── README.md
 ```
 
@@ -131,33 +129,18 @@ xianyu-auto-reply/
 
 ## 快速开始
 
-### 方式一：服务器一键部署（推荐）
+### 方式一：Docker 一键部署（推荐）
 
-服务器已安装 Docker 与 Docker Compose 后，直接执行一键部署脚本即可：
-
-```bash
-curl -fsSL https://xy-update.zhinianboke.com/deploy.sh | sed 's/\r$//' | bash
-```
-
-该脚本会自动完成部署所需的配置生成、镜像拉取、旧容器清理与服务启动。
-
-更新版本，直接执行一键更新脚本即可：
+服务器已安装 Docker 与 Docker Compose 后：
 
 ```bash
-curl -fsSL https://xy-update.zhinianboke.com/update.sh | sed 's/\r$//' | bash
-```
-
-### 方式二：克隆仓库部署
-
-```bash
-git clone https://github.com/zhinianboke/xianyu-auto-reply.git
-cd xianyu-auto-reply
+git clone https://github.com/BeginnerStars/xianyu-auto-reply-pro.git
+cd xianyu-auto-reply-pro
 bash deploy.sh
 ```
 
 - 首次运行会自动生成 `.env` 配置文件和 `docker-compose.deploy.yml`
 - 从阿里云镜像仓库拉取预构建镜像并启动
-- 如果检测到加密版容器会自动清理（保留数据卷）
 - 部署完成后默认访问地址：
   - 前端：`http://服务器IP:9000`
   - API 文档：`http://服务器IP:8089/docs`
@@ -169,9 +152,11 @@ bash deploy.sh
 bash update.sh
 ```
 
-### 方式三：本地源码 Docker 构建
+### 方式二：本地源码 Docker 构建
 
 ```bash
+git clone https://github.com/BeginnerStars/xianyu-auto-reply-pro.git
+cd xianyu-auto-reply-pro
 bash build.sh rebuild
 ```
 
@@ -195,7 +180,7 @@ bash build_websocket.sh     # 重建 WebSocket
 bash build_scheduler.sh     # 重建 Scheduler
 ```
 
-### 方式四：源码本地开发
+### 方式三：源码本地开发
 
 #### 1. 准备基础服务
 
@@ -237,8 +222,7 @@ TZ=Asia/Shanghai
 # Backend-Web 服务
 cd backend-web
 python -m venv .venv
-# Windows: .venv\Scripts\activate
-# Linux/macOS: source .venv/bin/activate
+source .venv/bin/activate
 pip install -e .
 python -m playwright install chromium
 python main.py
@@ -248,8 +232,7 @@ python main.py
 # WebSocket 服务
 cd websocket
 python -m venv .venv
-# Windows: .venv\Scripts\activate
-# Linux/macOS: source .venv/bin/activate
+source .venv/bin/activate
 pip install -e .
 python -m playwright install chromium
 python main.py
@@ -259,8 +242,7 @@ python main.py
 # Scheduler 服务
 cd scheduler
 python -m venv .venv
-# Windows: .venv\Scripts\activate
-# Linux/macOS: source .venv/bin/activate
+source .venv/bin/activate
 pip install -e .
 python -m playwright install chromium
 python main.py
@@ -274,7 +256,7 @@ npm install
 npm run dev
 ```
 
-#### 5. 启动返佣子系统
+#### 5. 启动返佣子系统（可选）
 
 ```bash
 # 返佣后端
@@ -336,9 +318,6 @@ npm run dev
 | `build_backend_web.sh` | Linux | 单独重建并重启 Backend-Web 服务 |
 | `build_websocket.sh` | Linux | 单独重建并重启 WebSocket 服务 |
 | `build_scheduler.sh` | Linux | 单独重建并重启 Scheduler 服务 |
-| `EXE打包构建.bat` | Windows | 使用 Nuitka 打包桌面启动器 EXE |
-| `离线依赖打包.bat` | Windows | 打包所有 Python 依赖供离线安装 |
-| `scripts/Pipeline脚本-xianyu-auto-reply.groovy` | Jenkins | CI/CD 流水线，构建多架构镜像并推送到阿里云 ACR |
 
 ## 安全说明
 
@@ -359,10 +338,6 @@ npm run dev
 
 ## 常见问题
 
-### 根目录 Docker Compose 没有启动返佣系统？
-
-当前 `docker-compose.yml` 只覆盖主系统。返佣系统需要单独启动。
-
 ### 登录或发布时报浏览器缺失？
 
 在对应 Python 环境执行：`python -m playwright install chromium`。Docker 环境依赖各服务 Dockerfile 内已安装的浏览器。
@@ -376,38 +351,15 @@ npm run dev
 脚本文件包含 Windows 换行符（CRLF），Linux 无法识别。解决方法：
 
 ```bash
-# 方法一：用 sed 去除 \r 后执行
 sed -i 's/\r$//' deploy.sh
 bash deploy.sh
-
-# 方法二：通过管道执行（推荐远程脚本使用）
-curl -fsSL https://xy-update.zhinianboke.com/deploy.sh | sed 's/\r$//' | bash
 ```
 
-## 许可证
+## 特别鸣谢
 
-本项目采用 [GNU Affero General Public License v3.0 (AGPL-3.0)](LICENSE) 开源协议。
+本项目基于以下开源项目：
 
-**⚠️ 禁止商业用途：本项目仅供学习研究使用，严禁任何形式的商业用途。**
-
-## 免责声明
-
-本项目仅供技术学习和研究使用，使用者需自行承担使用风险。请遵守相关平台的使用条款和法律法规。
-
-- 本项目不对使用本系统造成的任何后果负责
-- 请勿用于违反闲鱼平台规则的行为
-- 请勿用于商业用途
-- 使用本系统可能存在账号风险，请谨慎使用
-
-## 🧸 特别鸣谢
-
-本项目参考了以下开源项目：
-
-- **[XianYuApis](https://github.com/cv-cat/XianYuApis)** - 提供了闲鱼API接口的技术参考
-- **[XianyuAutoAgent](https://github.com/shaxiu/XianyuAutoAgent)** - 提供了自动化处理的实现思路
-- **[myfish](https://github.com/Kaguya233qwq/myfish)** - 提供了扫码登录的实现思路
-
-
-感谢这些优秀的开源项目为本项目的开发提供了宝贵的参考和启发！
-
-
+- **[zhinianboke/xianyu-auto-reply](https://github.com/zhinianboke/xianyu-auto-reply)** - 原版闲鱼自动回复管理系统
+- **[XianYuApis](https://github.com/cv-cat/XianYuApis)** - 闲鱼 API 接口技术参考
+- **[XianyuAutoAgent](https://github.com/shaxiu/XianyuAutoAgent)** - 自动化处理实现思路
+- **[myfish](https://github.com/Kaguya233qwq/myfish)** - 扫码登录实现思路
