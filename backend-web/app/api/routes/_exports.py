@@ -22,6 +22,7 @@ from . import (
     captcha,
     cards,
     data_analysis,
+    delivery_monitor,
     distribution,
     chat_new,
     chat_new_ws,
@@ -146,6 +147,9 @@ api_router.include_router(shared_scan.router, tags=["共享多人扫码登录"])
 
 # 数据分析
 api_router.include_router(data_analysis.router, tags=["数据分析"])  # 已定义prefix="/data-analysis"
+
+# 发货监控
+api_router.include_router(delivery_monitor.router, tags=["发货监控"])  # 已定义prefix="/delivery-monitor"
 
 # Goofish相关
 api_router.include_router(goofish_compass.router, tags=["Goofish数据罗盘"])  # 已定义prefix="/compass/goofish"

@@ -9,6 +9,7 @@
 from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
+from typing import Any
 
 from sqlalchemy import and_, case, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -355,3 +356,286 @@ class DashboardStatsService:
                 }
             )
         return trend_data
+
+    async def get_delivery_stats(
+        self,
+        period: str = "today",
+        owner_id: int | None = None,
+    ) -> dict[str, Any]:
+        """获取发货统计
+
+        Args:
+            period: 时间范围 (today/yesterday/7days/30days)
+            owner_id: 用户ID（None表示管理员查询全部）
+
+        Returns:
+            发货统计字典，包含：
+            - total_deliveries: 总发货数
+            - successful: 成功发货数
+            - failed: 失败发货数
+            - success_rate: 成功率
+            - avg_delivery_time: 平均发货时间（秒）
+            - failure_reasons: 失败原因分布
+            - hourly_volume: 每小时发货量（用于图表）
+        """
+        from common.models.auto_reply_message_log import XYAutoReplyMessageLog
+        from sqlalchemy import case, extract
+
+        # 计算时间范围
+        now = datetime.now(BEIJING_TZ)
+        if period == "today":
+            start_time = now.replace(hour=0, minute=0, second=0, microsecond=0)
+        elif period == "yesterday":
+            start_time = (now - timedelta(days=1)).replace(hour=0, minute=0, second=0, microsecond=0)
+            end_time = now.replace(hour=0, minute=0, second=0, microsecond=0)
+        elif period == "7days":
+            start_time = (now - timedelta(days=7)).replace(hour=0, minute=0, second=0, microsecond=0)
+        elif period == "30days":
+            start_time = (now - timedelta(days=30)).replace(hour=0, minute=0, second=0, microsecond=0)
+        else:
+            start_time = now.replace(hour=0, minute=0, second=0, microsecond=0)
+
+        # 基础查询条件
+        base_conditions = [
+            XYAutoReplyMessageLog.created_at >= start_time.replace(tzinfo=None),
+        ]
+        if period == "yesterday":
+            base_conditions.append(XYAutoReplyMessageLog.created_at < end_time.replace(tzinfo=None))
+        if owner_id is not None:
+            base_conditions.append(XYAutoReplyMessageLog.owner_id == owner_id)
+
+        # 统计总发货数、成功数、失败数
+        stats_stmt = (
+            select(
+                func.count().label("total"),
+                func.coalesce(
+                    func.sum(case(
+                        (XYAutoReplyMessageLog.send_status == "success", 1),
+                        else_=0,
+                    )),
+                    0,
+                ).label("successful"),
+                func.coalesce(
+                    func.sum(case(
+                        (XYAutoReplyMessageLog.send_status == "failed", 1),
+                        else_=0,
+                    )),
+                    0,
+                ).label("failed"),
+            )
+            .select_from(XYAutoReplyMessageLog)
+            .where(and_(*base_conditions))
+        )
+        stats_row = (await self.session.execute(stats_stmt)).one()
+
+        total = int(stats_row.total or 0)
+        successful = int(stats_row.successful or 0)
+        failed = int(stats_row.failed or 0)
+        success_rate = round(successful / total * 100, 2) if total > 0 else 0.0
+
+        # 失败原因分布
+        failure_stmt = (
+            select(
+                XYAutoReplyMessageLog.send_fail_reason,
+                func.count().label("count"),
+            )
+            .select_from(XYAutoReplyMessageLog)
+            .where(
+                and_(
+                    *base_conditions,
+                    XYAutoReplyMessageLog.send_status == "failed",
+                    XYAutoReplyMessageLog.send_fail_reason.isnot(None),
+                )
+            )
+            .group_by(XYAutoReplyMessageLog.send_fail_reason)
+            .order_by(func.count().desc())
+            .limit(10)
+        )
+        failure_rows = (await self.session.execute(failure_stmt)).all()
+        failure_reasons = [
+            {"reason": row[0] or "未知原因", "count": int(row[1])}
+            for row in failure_rows
+        ]
+
+        # 每小时发货量（用于图表）
+        hourly_stmt = (
+            select(
+                extract("hour", XYAutoReplyMessageLog.created_at).label("hour"),
+                func.count().label("count"),
+            )
+            .select_from(XYAutoReplyMessageLog)
+            .where(and_(*base_conditions))
+            .group_by(extract("hour", XYAutoReplyMessageLog.created_at))
+            .order_by(extract("hour", XYAutoReplyMessageLog.created_at))
+        )
+        hourly_rows = (await self.session.execute(hourly_stmt)).all()
+        hourly_volume = [
+            {"hour": int(row[0]), "count": int(row[1])}
+            for row in hourly_rows
+        ]
+
+        # 填充缺失的小时（0-23）
+        hourly_map = {item["hour"]: item["count"] for item in hourly_volume}
+        hourly_volume = [
+            {"hour": h, "count": hourly_map.get(h, 0)}
+            for h in range(24)
+        ]
+
+        # 计算平均发货时间（基于 created_at 到 updated_at 的差值）
+        # 注意：这是一个估算，因为没有精确的"发货完成时间"字段
+        avg_time_stmt = (
+            select(
+                func.avg(
+                    func.timestampdiff(
+                        second,
+                        XYAutoReplyMessageLog.created_at,
+                        XYAutoReplyMessageLog.updated_at,
+                    )
+                ).label("avg_seconds"),
+            )
+            .select_from(XYAutoReplyMessageLog)
+            .where(
+                and_(
+                    *base_conditions,
+                    XYAutoReplyMessageLog.send_status == "success",
+                )
+            )
+        )
+        avg_time_result = (await self.session.execute(avg_time_stmt)).scalar()
+        avg_delivery_time = round(float(avg_time_result or 0), 2)
+
+        return {
+            "total_deliveries": total,
+            "successful": successful,
+            "failed": failed,
+            "success_rate": success_rate,
+            "avg_delivery_time": avg_delivery_time,
+            "failure_reasons": failure_reasons,
+            "hourly_volume": hourly_volume,
+        }
+
+    async def get_delivery_alerts(self) -> list[dict[str, Any]]:
+        """获取发货相关告警
+
+        Returns:
+            告警列表，每条告警包含：
+            - alert_type: 告警类型
+            - severity: 严重程度 (info/warning/critical)
+            - message: 告警消息
+            - created_at: 告警时间
+        """
+        from common.models.auto_reply_message_log import XYAutoReplyMessageLog
+        from common.models.card import Card
+
+        alerts = []
+
+        # 1. 检查今日失败率
+        today_start = self._build_today_start()
+        today_stats_stmt = (
+            select(
+                func.count().label("total"),
+                func.coalesce(
+                    func.sum(case(
+                        (XYAutoReplyMessageLog.send_status == "failed", 1),
+                        else_=0,
+                    )),
+                    0,
+                ).label("failed"),
+            )
+            .select_from(XYAutoReplyMessageLog)
+            .where(XYAutoReplyMessageLog.created_at >= today_start)
+        )
+        today_row = (await self.session.execute(today_stats_stmt)).one()
+        today_total = int(today_row.total or 0)
+        today_failed = int(today_row.failed or 0)
+
+        if today_total > 0:
+            failure_rate = today_failed / today_total * 100
+            if failure_rate >= 30:
+                alerts.append({
+                    "alert_type": "high_failure_rate",
+                    "severity": "critical",
+                    "message": f"今日发货失败率过高: {failure_rate:.1f}% ({today_failed}/{today_total})",
+                    "created_at": datetime.now(BEIJING_TZ).isoformat(),
+                })
+            elif failure_rate >= 15:
+                alerts.append({
+                    "alert_type": "elevated_failure_rate",
+                    "severity": "warning",
+                    "message": f"今日发货失败率偏高: {failure_rate:.1f}% ({today_failed}/{today_total})",
+                    "created_at": datetime.now(BEIJING_TZ).isoformat(),
+                })
+
+        # 2. 检查卡券库存（检查关联到商品的卡券）
+        low_inventory_stmt = (
+            select(
+                Card.id,
+                Card.name,
+                Card.item_id,
+                Card.delivery_count,
+            )
+            .select_from(Card)
+            .where(
+                Card.enabled == True,
+                Card.item_id.isnot(None),
+            )
+            .order_by(Card.delivery_count.desc())
+            .limit(100)
+        )
+        low_inventory_rows = (await self.session.execute(low_inventory_stmt)).all()
+
+        # 注意：这里只能检查发货次数，如果需要精确库存需要检查 data_content 中的剩余数量
+        # 简单检查：如果卡券的 data_content 为空或很短，可能库存不足
+        for row in low_inventory_rows:
+            card_id, card_name, item_id, delivery_count = row
+            # 获取卡券详情检查库存
+            card_detail_stmt = select(Card.data_content).where(Card.id == card_id)
+            card_content = (await self.session.execute(card_detail_stmt)).scalar()
+
+            if card_content:
+                # 计算剩余库存（简单估算：按行数计算）
+                remaining = card_content.count("\n") + 1 if card_content.strip() else 0
+                if remaining <= 5 and remaining > 0:
+                    alerts.append({
+                        "alert_type": "low_inventory",
+                        "severity": "warning",
+                        "message": f"卡券 '{card_name}' 库存不足: 剩余约 {remaining} 个",
+                        "created_at": datetime.now(BEIJING_TZ).isoformat(),
+                        "card_id": card_id,
+                        "item_id": item_id,
+                    })
+                elif remaining == 0:
+                    alerts.append({
+                        "alert_type": "out_of_stock",
+                        "severity": "critical",
+                        "message": f"卡券 '{card_name}' 已售罄",
+                        "created_at": datetime.now(BEIJING_TZ).isoformat(),
+                        "card_id": card_id,
+                        "item_id": item_id,
+                    })
+
+        # 3. 检查最近1小时是否有大量失败
+        one_hour_ago = datetime.now(BEIJING_TZ) - timedelta(hours=1)
+        recent_failures_stmt = (
+            select(func.count())
+            .select_from(XYAutoReplyMessageLog)
+            .where(
+                XYAutoReplyMessageLog.created_at >= one_hour_ago.replace(tzinfo=None),
+                XYAutoReplyMessageLog.send_status == "failed",
+            )
+        )
+        recent_failures = int((await self.session.execute(recent_failures_stmt)).scalar() or 0)
+
+        if recent_failures >= 10:
+            alerts.append({
+                "alert_type": "recent_spike_failures",
+                "severity": "critical",
+                "message": f"最近1小时发货失败 {recent_failures} 次，可能存在系统问题",
+                "created_at": datetime.now(BEIJING_TZ).isoformat(),
+            })
+
+        # 按严重程度排序
+        severity_order = {"critical": 0, "warning": 1, "info": 2}
+        alerts.sort(key=lambda x: severity_order.get(x["severity"], 99))
+
+        return alerts

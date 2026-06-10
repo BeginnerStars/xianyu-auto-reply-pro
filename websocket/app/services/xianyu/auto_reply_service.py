@@ -34,6 +34,7 @@ from common.utils.default_reply_api import call_reply_api
 
 from app.services.xianyu.resource_manager import pause_manager
 from app.services.xianyu.auto_reply_log_service import AutoReplyLogService
+from app.services.xianyu.notification_dispatcher import NotificationDispatcher
 
 
 class AutoReplyService:
@@ -104,6 +105,7 @@ class AutoReplyService:
         self.cookie_id = cookie_id
         self.xianyu_instance = xianyu_instance
         self.auto_reply_log_service = AutoReplyLogService(cookie_id)
+        self.notification_dispatcher = NotificationDispatcher()
         self._account: Optional[XYAccount] = None
         # 消息过滤关键词缓存
         self._filter_keywords_cache: Dict[str, List[str]] = {}
@@ -930,7 +932,7 @@ class AutoReplyService:
         item_id: str,
         msg_time: str,
     ) -> None:
-        """发送消息通知
+        """发送消息通知（委托 NotificationDispatcher 进行渠道分发）
         
         Args:
             send_user_name: 发送者用户名
@@ -968,49 +970,10 @@ class AutoReplyService:
                 notification_content += f"商品ID: {item_id}\n"
             notification_content += f"时间: {msg_time}"
             
-            # 发送通知到各渠道
-            for notification in notifications:
-                try:
-                    # 检查通知是否启用
-                    if not notification.get('enabled', True):
-                        continue
-                    
-                    channel_type = notification.get('channel_type', '')
-                    channel_config = notification.get('channel_config', {}) or {}
-                    
-                    # 使用公共通知工具函数
-                    from common.utils.notification_utils import (
-                        parse_notification_config,
-                        send_dingtalk_notification,
-                        send_feishu_notification,
-                        send_bark_notification,
-                        send_email_notification,
-                        send_webhook_notification,
-                        send_wechat_notification,
-                        send_telegram_notification
-                    )
-                    
-                    config_data = parse_notification_config(channel_config)
-                    
-                    if channel_type in ('dingtalk', 'ding_talk'):
-                        await send_dingtalk_notification(config_data, notification_content)
-                    elif channel_type in ('feishu', 'lark'):
-                        await send_feishu_notification(config_data, notification_content)
-                    elif channel_type == 'bark':
-                        await send_bark_notification(config_data, notification_content)
-                    elif channel_type == 'email':
-                        await send_email_notification(config_data, notification_content)
-                    elif channel_type == 'webhook':
-                        await send_webhook_notification(config_data, notification_content)
-                    elif channel_type in ('wechat', 'wechat_work'):
-                        await send_wechat_notification(config_data, notification_content)
-                    elif channel_type == 'telegram':
-                        await send_telegram_notification(config_data, notification_content)
-                    else:
-                        logger.warning(f"【{self.cookie_id}】不支持的通知渠道类型: {channel_type}")
-                        
-                except Exception as e:
-                    logger.error(f"【{self.cookie_id}】发送{channel_type}通知失败: {e}")
+            # 委托 NotificationDispatcher 并行发送到所有渠道（带错误隔离）
+            await self.notification_dispatcher.dispatch_all(
+                notifications, notification_content
+            )
                     
         except Exception as e:
             logger.error(f"【{self.cookie_id}】发送消息通知失败: {e}")
