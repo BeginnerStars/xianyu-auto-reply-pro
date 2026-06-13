@@ -32,6 +32,7 @@ from app.services.scheduler.close_notice_task import close_notice_task_service
 from app.services.scheduler.red_flower_task import RedFlowerTask
 from app.services.scheduler.db_backup_task import db_backup_task_service
 from app.services.scheduler.inventory_monitor_task import inventory_monitor_task_service
+from app.services.scheduler.delivery_timeout_task import delivery_timeout_task_service
 from app.services.scheduled_task_service import (
     ScheduledTaskService,
     TASK_CODE_REDELIVERY,
@@ -49,6 +50,7 @@ from app.services.scheduled_task_service import (
     TASK_CODE_RED_FLOWER,
     TASK_CODE_DB_BACKUP,
     TASK_CODE_INVENTORY_MONITOR,
+    TASK_CODE_DELIVERY_TIMEOUT,
 )
 from common.db.session import async_session_maker
 
@@ -75,6 +77,7 @@ class SchedulerService:
         TASK_CODE_RED_FLOWER: ("_red_flower_task", 300, False, "求小红花"),
         TASK_CODE_DB_BACKUP: ("_db_backup_task", 3600, True, "数据库备份"),
         TASK_CODE_INVENTORY_MONITOR: ("_inventory_monitor_task", 300, True, "卡券库存监控"),
+        TASK_CODE_DELIVERY_TIMEOUT: ("_delivery_timeout_task", 60, True, "发货超时检测"),
     }
     
     def __init__(self):
@@ -95,6 +98,7 @@ class SchedulerService:
         self._red_flower_task = RedFlowerTask()
         self._db_backup_task = db_backup_task_service
         self._inventory_monitor_task = inventory_monitor_task_service
+        self._delivery_timeout_task = delivery_timeout_task_service
     
     @classmethod
     def get_instance(cls) -> "SchedulerService":

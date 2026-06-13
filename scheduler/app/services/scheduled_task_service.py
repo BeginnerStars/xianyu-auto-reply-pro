@@ -34,6 +34,7 @@ TASK_CODE_CLOSE_NOTICE = "close_notice"
 TASK_CODE_RED_FLOWER = "red_flower"
 TASK_CODE_DB_BACKUP = "db_backup"
 TASK_CODE_INVENTORY_MONITOR = "inventory_monitor"
+TASK_CODE_DELIVERY_TIMEOUT = "delivery_timeout"
 
 # 默认配置（数据库无配置时使用）
 DEFAULT_CONFIGS = {
@@ -52,6 +53,7 @@ DEFAULT_CONFIGS = {
     TASK_CODE_RED_FLOWER: {"interval_seconds": 300, "enabled": True},
     TASK_CODE_DB_BACKUP: {"interval_seconds": 3600, "enabled": True},
     TASK_CODE_INVENTORY_MONITOR: {"interval_seconds": 300, "enabled": True},
+    TASK_CODE_DELIVERY_TIMEOUT: {"interval_seconds": 60, "enabled": True},
 }
 
 
