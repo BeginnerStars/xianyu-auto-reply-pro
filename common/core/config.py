@@ -76,7 +76,7 @@ class BaseConfig(BaseSettings):
     
     # 服务监听地址：`::` 同时监听 IPv4 和 IPv6（dual-stack），
     # 适用于 Linux/macOS；如需仅监听 IPv4 可设为 0.0.0.0
-    host: str = Field(default="::")
+    host: str = Field(default="0.0.0.0")
 
     # 服务地址配置
     websocket_service_url: str = Field(default="http://127.0.0.1:8001")
