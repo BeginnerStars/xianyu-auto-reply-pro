@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import asyncio
 import base64
+import json
 import os
 import re
 from pathlib import Path
@@ -1097,7 +1098,12 @@ class XianyuPublisher:
         logger.info(f"描述内容: {full_description[:100]}...")
         await desc_input.click()
         await asyncio.sleep(0.5)
-        await desc_input.evaluate(f"el => el.innerText = {repr(full_description)}")
+        # 使用 json.dumps 而非 repr：repr 生成的是 Python 字面量，
+        # 对某些 Unicode 字符（如 emoji、U+2028/U+2029、\U 转义）可能产出无效 JS；
+        # json.dumps 生成标准 JSON 双引号字符串，浏览器可直接解析，兼容所有特殊字符。
+        await desc_input.evaluate(
+            f"el => el.innerText = {json.dumps(full_description, ensure_ascii=False)}"
+        )
 
         logger.info("✅ 描述已填写")
 
