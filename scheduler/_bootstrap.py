@@ -154,9 +154,10 @@ async def global_exception_handler(request, exc):
 
 
 # 挂载API路由
-from app.api.routes import internal
+from app.api.routes import health, internal
 
 app.include_router(internal.router)
+app.include_router(health.router)
 
 
 @app.get("/health")

@@ -131,11 +131,12 @@ from app.core.error_handlers import setup_error_handlers
 setup_error_handlers(app)
 
 # 挂载API路由
-from app.api.routes import cookies_refresh, internal, password_login
+from app.api.routes import cookies_refresh, health, internal, password_login
 
 app.include_router(internal.router)
 app.include_router(cookies_refresh.router)
 app.include_router(password_login.router)
+app.include_router(health.router)
 
 # 开启本进程内浏览器续期执行：所有浏览器续期（含 scheduler / backend-web 的 HTTP 委托）
 # 统一收敛到 WebSocket 进程，与滑块验证同进程串行，复用持久化目录与账号级互斥锁。
