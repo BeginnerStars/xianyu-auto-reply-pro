@@ -38,7 +38,7 @@ class SendCodeRequest(BaseModel):
     """发送邮箱验证码请求"""
     email: EmailStr
     session_id: Optional[str] = None
-    type: str = "register"  # register 或 login
+    type: str = "register"  # register, login 或 reset_password
 
 
 # ==================== 工具函数 ====================
@@ -252,6 +252,13 @@ async def send_email_verification_code(
                     message="该邮箱已被注册"
                 )
         elif request.type == "login":
+            existing_user = await user_service.get_by_email(request.email)
+            if not existing_user:
+                return ApiResponse(
+                    success=False,
+                    message="该邮箱未注册"
+                )
+        elif request.type == "reset_password":
             existing_user = await user_service.get_by_email(request.email)
             if not existing_user:
                 return ApiResponse(

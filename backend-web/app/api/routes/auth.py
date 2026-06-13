@@ -8,6 +8,7 @@
 4. 用户登出
 """
 from fastapi import APIRouter, Depends, HTTPException, Request, status
+from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api import deps
@@ -15,11 +16,18 @@ from app.core.security import decode_token
 from common.models.user import User, UserRole, UserStatus
 from common.schemas.auth import LoginRequest, LoginResponse, VerifyResponse
 from common.schemas.common import ApiResponse
-from common.schemas.user import UserCreate, UserPublic
+from common.schemas.user import UserCreate, UserPublic, UserUpdate
 from app.services.auth import AuthService
 from app.services.user_service import UserService
 
 router = APIRouter(tags=["auth"])
+
+
+class ResetPasswordRequest(BaseModel):
+    """重置密码请求"""
+    email: str
+    verification_code: str
+    new_password: str
 
 
 @router.post("/login", response_model=LoginResponse)
@@ -225,3 +233,34 @@ async def register_user(
     
     await user_service.create(payload)
     return ApiResponse(success=True, message="注册成功")
+
+
+@router.post("/reset-password", response_model=ApiResponse)
+async def reset_password(
+    payload: ResetPasswordRequest,
+    session: AsyncSession = Depends(deps.get_db_session),
+) -> ApiResponse:
+    """重置密码（通过邮箱验证码）"""
+    from app.api.routes.captcha import check_email_code
+    from app.core.security import get_password_hash
+
+    # 验证邮箱验证码
+    code_valid, code_msg = check_email_code(payload.email, payload.verification_code, "reset_password")
+    if not code_valid:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=code_msg)
+
+    # 验证新密码长度
+    if len(payload.new_password) < 6:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="新密码长度不能少于6位")
+
+    # 查找用户
+    user_service = UserService(session)
+    user = await user_service.get_by_email(payload.email)
+    if not user:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="该邮箱未注册")
+
+    # 更新密码
+    user.password_hash = get_password_hash(payload.new_password)
+    await user_service.update(user, UserUpdate())
+
+    return ApiResponse(success=True, message="密码重置成功")
