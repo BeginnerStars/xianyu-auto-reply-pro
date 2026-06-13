@@ -105,7 +105,7 @@ services:
       redis:
         condition: service_healthy
     healthcheck:
-      test: ["CMD", "python3", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8089/health/ping', timeout=5)"]
+      test: ["CMD", "python3", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8089/api/v1/health/ping', timeout=5)"]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -153,7 +153,7 @@ services:
       backend-web:
         condition: service_healthy
     healthcheck:
-      test: ["CMD", "python3", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8090/health/ping', timeout=5)"]
+      test: ["CMD", "python3", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8090/api/v1/health/ping', timeout=5)"]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -205,7 +205,7 @@ services:
       backend-web:
         condition: service_healthy
     healthcheck:
-      test: ["CMD", "python3", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8091/health/ping', timeout=5)"]
+      test: ["CMD", "python3", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8091/api/v1/health/ping', timeout=5)"]
       interval: 30s
       timeout: 10s
       retries: 3
