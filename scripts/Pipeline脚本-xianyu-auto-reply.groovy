@@ -21,10 +21,13 @@
 
         // 基础设施镜像 - 从国内加速源同步多架构镜像到阿里云（amd64 + arm64）
         // 镜像名与 docker-compose.yml 保持一致（xianyu- 前缀）
-        MYSQL_SOURCE_IMAGE = 'docker.1ms.run/library/mysql:8.0'
+        // 源镜像用 docker.io 官方路径，配合下方多镜像前缀回退（imagetools 不走 buildkitd mirror）
+        MYSQL_IMAGE_REF = 'library/mysql:8.0'
         MYSQL_TARGET_TAG = 'xianyu-mysql:8.0'
-        REDIS_SOURCE_IMAGE = 'docker.1ms.run/library/redis:7-alpine'
+        REDIS_IMAGE_REF = 'library/redis:7-alpine'
         REDIS_TARGET_TAG = 'xianyu-redis:7-alpine'
+        // Docker Hub 国内加速前缀（多镜像回退，参照 jenkins/优化Buildx网络.sh）
+        DOCKERHUB_MIRRORS = 'docker.1ms.run docker.xuanyuan.me dockerpull.com'
 
         // 支持的平台
         PLATFORMS = 'linux/amd64,linux/arm64'
@@ -77,13 +80,33 @@
                     sh '''
                         # 检查 buildx 是否可用
                         docker buildx version
-                        
-                        # 确保使用正确的 builder
-                        docker buildx use multiarch-builder || \
-                        (docker buildx create --name multiarch-builder --driver docker-container --use && \
-                         docker buildx inspect --bootstrap)
-                        
-                        # 显示支持的平台
+
+                        # buildkitd 配置：限制并发构建步骤 + docker.io 镜像加速（多镜像回退，参照 jenkins/优化Buildx网络.sh）
+                        BUILDKIT_CFG="$(pwd)/buildkitd.toml"
+                        cat > "${BUILDKIT_CFG}" <<EOF
+[worker.oci]
+  max-parallelism = ${BUILD_PARALLELISM}
+
+[registry."docker.io"]
+  mirrors = ["docker.1ms.run", "docker.xuanyuan.me", "dockerpull.com"]
+EOF
+
+                        # 兼容不同 buildx 版本的配置文件参数名（新版 --buildkitd-config，旧版 --config）
+                        CFG_FLAG="--config"
+                        if docker buildx create --help 2>/dev/null | grep -q -- '--buildkitd-config'; then
+                            CFG_FLAG="--buildkitd-config"
+                        fi
+
+                        # 重建带资源限制的 builder
+                        # docker-container driver 支持 memory / cpu-quota 等资源限制，作用于整个构建容器
+                        docker buildx rm multiarch-builder 2>/dev/null || true
+                        docker buildx create --name multiarch-builder --driver docker-container --use \
+                            --driver-opt memory=${BUILD_MEMORY} \
+                            --driver-opt cpu-quota=${BUILD_CPU_QUOTA} \
+                            ${CFG_FLAG} "${BUILDKIT_CFG}"
+                        docker buildx inspect --bootstrap
+
+                        echo "资源限制: 内存=${BUILD_MEMORY} CPU配额=${BUILD_CPU_QUOTA}(100000=1核) 并发=${BUILD_PARALLELISM}"
                         echo "支持的平台:"
                         docker buildx inspect --bootstrap | grep Platforms
                     '''
@@ -242,15 +265,25 @@
                                 # 登录阿里云镜像仓库
                                 echo "\${REGISTRY_PASS}" | docker login ${ALIYUN_REGISTRY} -u "\${REGISTRY_USER}" --password-stdin
 
-                                # 复制 MySQL 多架构镜像（保留 amd64 + arm64）
-                                docker buildx imagetools create \\
-                                    -t ${ALIYUN_REGISTRY}/${ALIYUN_NAMESPACE}/${MYSQL_TARGET_TAG} \\
-                                    ${MYSQL_SOURCE_IMAGE}
+                                # imagetools 不经过 buildkitd 的镜像加速，这里对源镜像做多镜像前缀回退
+                                copy_image() {
+                                    SRC_REF="\$1"   # 例如 library/mysql:8.0
+                                    DST="\$2"        # 目标镜像全名
+                                    for M in ${DOCKERHUB_MIRRORS}; do
+                                        echo "尝试从 \${M}/\${SRC_REF} 复制到 \${DST}"
+                                        if docker buildx imagetools create -t "\${DST}" "\${M}/\${SRC_REF}"; then
+                                            echo "✓ 复制成功（源镜像: \${M}）"
+                                            return 0
+                                        fi
+                                        echo "✗ \${M} 失败，尝试下一个加速源..."
+                                    done
+                                    echo "所有加速源均失败: \${SRC_REF}"
+                                    return 1
+                                }
 
-                                # 复制 Redis 多架构镜像（保留 amd64 + arm64）
-                                docker buildx imagetools create \\
-                                    -t ${ALIYUN_REGISTRY}/${ALIYUN_NAMESPACE}/${REDIS_TARGET_TAG} \\
-                                    ${REDIS_SOURCE_IMAGE}
+                                # 复制 MySQL / Redis 多架构镜像（保留 amd64 + arm64）
+                                copy_image "${MYSQL_IMAGE_REF}" "${ALIYUN_REGISTRY}/${ALIYUN_NAMESPACE}/${MYSQL_TARGET_TAG}"
+                                copy_image "${REDIS_IMAGE_REF}" "${ALIYUN_REGISTRY}/${ALIYUN_NAMESPACE}/${REDIS_TARGET_TAG}"
 
                                 # 校验目标镜像架构
                                 echo "MySQL 镜像架构:"
