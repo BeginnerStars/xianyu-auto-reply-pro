@@ -53,6 +53,9 @@ def resolve_listen_host(host: str, port: int) -> str:
     try:
         test_socket = socket.socket(socket.AF_INET6, socket.SOCK_STREAM)
         test_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        # 关键：显式关闭 IPV6_V6ONLY，确保双栈同时接受 IPv4 和 IPv6 连接
+        # Docker 容器默认 IPV6_V6ONLY=1，导致 :: 只监听 IPv6，IPv4 连接被拒绝
+        test_socket.setsockopt(socket.IPPROTO_IPV6, socket.IPV6_V6ONLY, 0)
         # 绑定到端口 0（由系统分配临时端口），仅探测地址族是否可用，避免与真实端口冲突
         test_socket.bind((DUAL_STACK_HOST, 0))
         logger.info("IPv6 双栈监听可用，使用 {} 监听端口 {}", DUAL_STACK_HOST, port)
