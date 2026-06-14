@@ -26,6 +26,7 @@ from common.utils.notification_utils import (
     send_webhook_notification,
     send_wechat_notification,
     send_telegram_notification,
+    send_ntfy_notification,
 )
 
 
@@ -92,6 +93,12 @@ class NotificationDispatcher:
         """发送 Telegram 通知"""
         return await send_telegram_notification(config_data, content)
 
+    async def _handle_ntfy(
+        self, config_data: Dict[str, Any], content: str, **kwargs
+    ) -> bool:
+        """发送 ntfy 通知"""
+        return await send_ntfy_notification(config_data, content)
+
     # 渠道类型 -> handler 方法名映射
     _HANDLER_MAP: Dict[str, str] = {
         "dingtalk": "_handle_dingtalk",
@@ -101,6 +108,7 @@ class NotificationDispatcher:
         "webhook": "_handle_webhook",
         "wechat": "_handle_wechat",
         "telegram": "_handle_telegram",
+        "ntfy": "_handle_ntfy",
     }
 
     # ==================== 公共调度接口 ====================
